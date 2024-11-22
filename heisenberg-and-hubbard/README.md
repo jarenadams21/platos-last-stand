@@ -57,6 +57,7 @@
 14. Function, Fourier transform duality
 15. Driven oscillator design
 16. Non-infinite design is probably helpful..
+17. PLANCKKKKKKKK
 
 ##### S(1) vs S(2) vs S(3)
 * "The key difference between group 1 and group 2 components is that everyone group 1 components have unpaired electrons in their outermost orbital, whereas group 2 components have paired electrons in their outermost orbital. S block components are found in groups 1 and 2 of the periodic table."
