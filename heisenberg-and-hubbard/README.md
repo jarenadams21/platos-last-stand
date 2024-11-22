@@ -51,6 +51,14 @@
 8. The uncertainty principle..
 9. Diffeomorphism
 10. Wolfgang Pauli.
+11. Space-induced gravity is GR.
+12. Tracking Higgs Field contribution across models (Distinguish particle-particle like proton-electron-nuetrino-etc vs particle-system like proton-Higgs or electron-Higgs)
 
 ##### S(1) vs S(2) vs S(3)
 * "The key difference between group 1 and group 2 components is that everyone group 1 components have unpaired electrons in their outermost orbital, whereas group 2 components have paired electrons in their outermost orbital. S block components are found in groups 1 and 2 of the periodic table."
+
+##### Definitions
+* Thermodynamic values solely depends on the temperature, pressure, and composition of the system, irrespective of its past states.
+
+##### Low Analogies
+1.  Because they [photons] move through the space-time that is contorted by the presence of mass. It helps to think about the time dimension of space-time. Time ‘moves slower’ near sources of mass. This can act like a lens where light travels ‘slower’ in different materials, like water or glass. If glass is thicker on one side of the lens or in the middle, it’s going to focus light differently. It’s also true of gravitational gradients. If one side of the wave is moving faster than the other side, the wave can ‘turn’
