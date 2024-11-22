@@ -53,6 +53,7 @@
 10. Wolfgang Pauli.
 11. Space-induced gravity is GR.
 12. Tracking Higgs Field contribution across models (Distinguish particle-particle like proton-electron-nuetrino-etc vs particle-system like proton-Higgs or electron-Higgs)
+13. Clear nothingness -> subatomic -> atomic | piping would be helpful for interpretation
 
 ##### S(1) vs S(2) vs S(3)
 * "The key difference between group 1 and group 2 components is that everyone group 1 components have unpaired electrons in their outermost orbital, whereas group 2 components have paired electrons in their outermost orbital. S block components are found in groups 1 and 2 of the periodic table."
