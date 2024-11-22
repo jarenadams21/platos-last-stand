@@ -50,7 +50,7 @@
 7. A differentiable manifold (probably) to yield valid calculus
 8. The uncertainty principle..
 9. Diffeomorphism
-10. Wolfgang Pauli.
+10. (!) Wolfgang Pauli and Dirac (!).
 11. Space-induced gravity is GR.
 12. Tracking Higgs Field contribution across models (Distinguish particle-particle like proton-electron-nuetrino-etc vs particle-system like proton-Higgs or electron-Higgs)
 13. Clear nothingness -> subatomic -> atomic | piping would be helpful for interpretation
