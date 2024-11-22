@@ -20,6 +20,8 @@
 3. Strongly correlated systems in physics: http://cmt.harvard.edu/demler/TEACHING/Physics284/chapter14.pdf
 4. De-Broglie Double Solutions
 5. EPR Paradox: https://en.wikipedia.org/wiki/Einstein%E2%80%93Podolsky%E2%80%93Rosen_paradox
+6. Copenhagen QM: https://plato.stanford.edu/entries/qm-copenhagen/
+ --> Pull out the big 3's work from this
 
 
 
