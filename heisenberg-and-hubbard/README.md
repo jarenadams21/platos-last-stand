@@ -31,3 +31,4 @@
 3. A Defined classical failure of description for observed physics
 4. How both systems behave (classical vs quanta)
 5. Results
+6. Problems in Anthropology, Minerals, or Fluid would be fun
