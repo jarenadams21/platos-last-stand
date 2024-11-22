@@ -6,12 +6,27 @@
 2. Ferrimagnestism of ultracold fermions in HubbardSystems: https://arxiv.org/abs/2404.17555
 3. Quantum Hamiltonian Learning for the Fermi-Hubbard: https://web.stanford.edu/~lexing/QLFermi.pdf
 4. Jordan-Wigner fermionization for spin-1/2 systems in 2D: https://arxiv.org/pdf/cond-mat/0101188
+5. The Soccer Ball Problem: https://arxiv.org/pdf/1403.2080
+6. Sub-Riemannian Geodesic Flows: https://arxiv.org/pdf/2411.09008
+7. Heisenberg 3D-nil manifold with Sub-Riemannian Geodesics: https://arxiv.org/pdf/2406.16065
+8. Bipartite entanglement entropy annealing: https://arxiv.org/html/2406.05324v5
+9. Non-commutative residue in Heisenberg manifolds: https://arxiv.org/pdf/math/0607296v1
+10. Uncertainty on harmonic manifolds: https://arxiv.org/pdf/2408.16324
+11. Negatively bounded Einstein manifolds in curved spacetime: https://arxiv.org/pdf/2411.13912
+12. Relative locality in curved spacetime: https://arxiv.org/pdf/1303.7216
+13. Heisenberg-Weyl and S(2) groups: https://arxiv.org/abs/2102.10791
+
 
 
 ### Helpful Discussion
 1. Why the spin operator can be written as a product of fermions: https://physics.stackexchange.com/questions/460704/why-can-the-spin-operator-be-written-as-a-product-of-fermions
 2. Optimizer Benchmarks on Fermi-Hubbard models: https://arxiv.org/pdf/2411.13742
 3. Difference between Hubbard and Heisenberg: https://www.physicsforums.com/threads/difference-between-hubbard-and-heisenberg-model.899274/
+4. QM on a Manifold: https://physics.stackexchange.com/questions/5773/quantum-mechanics-on-a-manifold
+5. Heisenberg on a Manifold: https://math.stackexchange.com/questions/434384/the-heisenberg-manifold
+
+
+
 
 
 ### Ass. Reading
@@ -32,3 +47,10 @@
 4. How both systems behave (classical vs quanta)
 5. Results
 6. Problems in Anthropology, Minerals, or Fluid would be fun
+7. A differentiable manifold (probably) to yield valid calculus
+8. The uncertainty principle..
+9. Diffeomorphism
+10. Wolfgang Pauli.
+
+##### S(1) vs S(2) vs S(3)
+* "The key difference between group 1 and group 2 components is that everyone group 1 components have unpaired electrons in their outermost orbital, whereas group 2 components have paired electrons in their outermost orbital. S block components are found in groups 1 and 2 of the periodic table."
