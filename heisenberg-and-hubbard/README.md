@@ -15,6 +15,7 @@
 11. Negatively bounded Einstein manifolds in curved spacetime: https://arxiv.org/pdf/2411.13912
 12. Relative locality in curved spacetime: https://arxiv.org/pdf/1303.7216
 13. Heisenberg-Weyl and S(2) groups: https://arxiv.org/abs/2102.10791
+14. Ghostbusters! https://arxiv.org/pdf/hep-th/0411064
 
 
 
@@ -58,6 +59,7 @@
 15. Driven oscillator design
 16. Non-infinite design is probably helpful..
 17. PLANCKKKKKKKK
+18
 
 ##### S(1) vs S(2) vs S(3)
 * "The key difference between group 1 and group 2 components is that everyone group 1 components have unpaired electrons in their outermost orbital, whereas group 2 components have paired electrons in their outermost orbital. S block components are found in groups 1 and 2 of the periodic table."
