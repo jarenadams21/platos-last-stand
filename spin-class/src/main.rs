@@ -21,10 +21,13 @@ const MU_B: f64 = 9.274009994e-24; // Bohr magneton in J/T
 const KB: f64 = 1.380649e-23; // Boltzmann constant in J/K
 const J_EXCHANGE: f64 = 1e-21; // Exchange interaction energy in J
 const LATTICE_SIZE: usize = 20; // Size of the lattice (20x20x20)
-const TIME_STEPS: usize = 100; // Number of time steps
-const DELTA_T: f64 = 1e-15; // Time step in seconds
-const TEMPERATURE: f64 = 300.0; // Temperature in Kelvin
-const EXTERNAL_FIELD: f64 = 1.0; // External magnetic field in Tesla
+const TIME_STEPS: usize = 1000; // Number of time steps
+const DELTA_T: f64 = 1e-17; // Time step in seconds
+const TEMPERATURE: f64 = 1000000000.0; // Temperature in Kelvin
+const EXTERNAL_FIELD: f64 = 10000.0; // External magnetic field in Tesla
+
+// Added CMB temperature
+const CMB_TEMPERATURE: f64 = 2.725; // Cosmic Microwave Background temperature in Kelvin
 
 /// Spinor struct representing a quantum spin state
 #[derive(Clone, Copy, Debug)]
@@ -76,10 +79,27 @@ impl Spinor {
     }
 }
 
+/// Energy struct to keep track of energy exchanges
+#[derive(Clone, Copy, Debug)]
+struct Energy {
+    total_energy: f64,
+}
+
+impl Energy {
+    fn new() -> Self {
+        Energy { total_energy: 0.0 }
+    }
+
+    fn add_energy(&mut self, delta_e: f64) {
+        self.total_energy += delta_e;
+    }
+}
+
 /// Lattice struct representing the 3D lattice of spins
 struct Lattice {
     spins: Array3<Spinor>,
     size: usize,
+    energy: Energy,
 }
 
 impl Lattice {
@@ -87,7 +107,11 @@ impl Lattice {
     fn new(size: usize) -> Self {
         let spin_up = Spinor::new_up();
         let spins = Array3::from_elem((size, size, size), spin_up);
-        Lattice { spins, size }
+        Lattice {
+            spins,
+            size,
+            energy: Energy::new(),
+        }
     }
 
     /// Apply an external magnetic field in the center region (observer effect)
@@ -120,6 +144,7 @@ impl Lattice {
                     for z in 0..self.size {
                         let spin = spins_copy[[x, y, z]];
                         let neighbors = self.get_neighbors(x, y, z);
+
                         // Compute exchange field from neighbors
                         let mut exchange_field = [0.0, 0.0, 0.0];
                         for neighbor_spin in &neighbors {
@@ -133,8 +158,8 @@ impl Lattice {
                         exchange_field[1] *= J_EXCHANGE / (MU_B * num_neighbors);
                         exchange_field[2] *= J_EXCHANGE / (MU_B * num_neighbors);
 
-                        // Thermal fluctuations (in Tesla)
-                        let thermal_std = 1e-3; // Thermal field standard deviation in Tesla
+                        // Thermal fluctuations due to lattice temperature (in Tesla)
+                        let thermal_std = (2.0 * KB * TEMPERATURE / (MU_B)).sqrt(); // Thermal field standard deviation
                         let normal_dist = Normal::new(0.0, thermal_std).unwrap();
                         let thermal_field = [
                             rng.sample(normal_dist),
@@ -142,14 +167,17 @@ impl Lattice {
                             rng.sample(normal_dist),
                         ];
 
-                        // External magnetic field
+                        // CMB field fluctuations (in Tesla)
+                        let cmb_field = self.calculate_cmb_field(&mut rng);
+
+                        // External magnetic field (set to zero in this simulation)
                         let external_field = [0.0, 0.0, EXTERNAL_FIELD];
 
                         // Total effective magnetic field (in Tesla)
                         let total_field = [
-                            exchange_field[0] + thermal_field[0] + external_field[0],
-                            exchange_field[1] + thermal_field[1] + external_field[1],
-                            exchange_field[2] + thermal_field[2] + external_field[2],
+                            exchange_field[0] + thermal_field[0] + cmb_field[0] + external_field[0],
+                            exchange_field[1] + thermal_field[1] + cmb_field[1] + external_field[1],
+                            exchange_field[2] + thermal_field[2] + cmb_field[2] + external_field[2],
                         ];
 
                         // Direction of time evolution
@@ -202,11 +230,53 @@ impl Lattice {
 
                         new_spin.normalize();
 
+                        // Calculate energy exchange due to CMB interaction
+                        let energy_exchange = self.calculate_energy_exchange(&spin, &new_spin, &total_field);
+                        self.energy.add_energy(energy_exchange);
+
                         self.spins[[x, y, z]] = new_spin;
                     }
                 }
             }
         }
+    }
+
+    /// Calculate the CMB field fluctuations for a spin
+    fn calculate_cmb_field(&self, rng: &mut StdRng) -> [f64; 3] {
+        // The CMB photons interact weakly, but we can model their effect as an additional thermal field
+        let cmb_std = (2.0 * KB * CMB_TEMPERATURE / (MU_B)).sqrt(); // Standard deviation due to CMB
+        let normal_dist = Normal::new(0.0, cmb_std).unwrap();
+        [
+            rng.sample(normal_dist),
+            rng.sample(normal_dist),
+            rng.sample(normal_dist),
+        ]
+    }
+
+    /// Calculate the energy exchange due to spin transition
+    fn calculate_energy_exchange(&self, old_spin: &Spinor, new_spin: &Spinor, total_field: &[f64; 3]) -> f64 {
+        // Energy difference ΔE = -μ · (B_new - B_old)
+        let delta_b = total_field;
+        let mu_s = MU_B;
+
+        let s_old = [
+            old_spin.expectation_sx(),
+            old_spin.expectation_sy(),
+            old_spin.expectation_sz(),
+        ];
+        let s_new = [
+            new_spin.expectation_sx(),
+            new_spin.expectation_sy(),
+            new_spin.expectation_sz(),
+        ];
+        let delta_s = [
+            s_new[0] - s_old[0],
+            s_new[1] - s_old[1],
+            s_new[2] - s_old[2],
+        ];
+
+        let delta_e = -mu_s * (delta_s[0] * delta_b[0] + delta_s[1] * delta_b[1] + delta_s[2] * delta_b[2]);
+        delta_e
     }
 
     /// Get the neighboring spins for a given position
@@ -354,6 +424,9 @@ fn main() {
     println!("Forward Magnetization: {}", forward_magnetization);
     println!("Forward Uncertainty Spread: {}", forward_uncertainty);
 
+    // Total energy after forward evolution
+    println!("Total Energy after Forward Evolution: {}", lattice.energy.total_energy);
+
     // Plot magnetization after forward evolution
     lattice.plot_magnetization_slice("forward_magnetization.png");
 
@@ -365,6 +438,9 @@ fn main() {
     let backward_uncertainty = lattice.calculate_uncertainty();
     println!("Backward Magnetization: {}", backward_magnetization);
     println!("Backward Uncertainty Spread: {}", backward_uncertainty);
+
+    // Total energy after backward evolution
+    println!("Total Energy after Backward Evolution: {}", lattice.energy.total_energy);
 
     // Plot magnetization after backward evolution
     lattice.plot_magnetization_slice("backward_magnetization.png");
