@@ -105,4 +105,4 @@
 
 ### Disclaimer
 
-The simulation code and explanations are intended for educational purposes to illustrate complex quantum mechanical concepts in a computational framework. While efforts have been made to ensure accuracy and completeness, the code simplifies certain aspects for tractability and may not capture all the intricacies of real quantum systems. For rigorous applications, more sophisticated models and numerical methods would be required.
+The simulation code and explanations are intended for educational purposes to illustrate complex quantum mechanical concepts in a computational framework. While efforts have been made to ensure accuracy and completeness, the code simplifies certain aspects for tractability and may not capture all the intricacies of real quantum systems. For rigorous applications, more sophisticated models and numerical methods would be required. YAH BABBBY
