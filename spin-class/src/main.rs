@@ -14,7 +14,6 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand_distr::Normal;
 use plotters::prelude::*;
-use std::f64::consts::PI;
 
 /// Constants
 const HBAR: f64 = 1.0545718e-34; // Reduced Planck constant in J·s
@@ -60,13 +59,13 @@ impl Spinor {
 
     /// Expectation value of Sx
     fn expectation_sx(&self) -> f64 {
-        let sx = self.up.conj() * self.down + self.down.conj() * self.up;
+        let sx: Complex<f64> = self.up.conj() * self.down + self.down.conj() * self.up;
         sx.re
     }
 
     /// Expectation value of Sy
     fn expectation_sy(&self) -> f64 {
-        let sy = Complex::i() * (self.up.conj() * self.down - self.down.conj() * self.up);
+        let sy: Complex<f64> = Complex::<f64>::i() * (self.up.conj() * self.down - self.down.conj() * self.up);
         sy.re
     }
 
@@ -123,19 +122,19 @@ impl Lattice {
                         let neighbors = self.get_neighbors(x, y, z);
                         // Compute exchange field from neighbors
                         let mut exchange_field = [0.0, 0.0, 0.0];
-                        for neighbor_spin in neighbors {
+                        for neighbor_spin in &neighbors {
                             exchange_field[0] += neighbor_spin.expectation_sx();
                             exchange_field[1] += neighbor_spin.expectation_sy();
                             exchange_field[2] += neighbor_spin.expectation_sz();
                         }
-                        // Normalize exchange field
+                        // Normalize exchange field and convert to Tesla
                         let num_neighbors = neighbors.len() as f64;
-                        exchange_field[0] *= J_EXCHANGE / num_neighbors;
-                        exchange_field[1] *= J_EXCHANGE / num_neighbors;
-                        exchange_field[2] *= J_EXCHANGE / num_neighbors;
+                        exchange_field[0] *= J_EXCHANGE / (MU_B * num_neighbors);
+                        exchange_field[1] *= J_EXCHANGE / (MU_B * num_neighbors);
+                        exchange_field[2] *= J_EXCHANGE / (MU_B * num_neighbors);
 
-                        // Thermal fluctuations
-                        let thermal_std = (2.0 * KB * TEMPERATURE / (DELTA_T * HBAR)).sqrt();
+                        // Thermal fluctuations (in Tesla)
+                        let thermal_std = 1e-3; // Thermal field standard deviation in Tesla
                         let normal_dist = Normal::new(0.0, thermal_std).unwrap();
                         let thermal_field = [
                             rng.sample(normal_dist),
@@ -146,29 +145,32 @@ impl Lattice {
                         // External magnetic field
                         let external_field = [0.0, 0.0, EXTERNAL_FIELD];
 
-                        // Total effective magnetic field
+                        // Total effective magnetic field (in Tesla)
                         let total_field = [
-                            exchange_field[0] + thermal_field[0] + MU_B * external_field[0],
-                            exchange_field[1] + thermal_field[1] + MU_B * external_field[1],
-                            exchange_field[2] + thermal_field[2] + MU_B * external_field[2],
+                            exchange_field[0] + thermal_field[0] + external_field[0],
+                            exchange_field[1] + thermal_field[1] + external_field[1],
+                            exchange_field[2] + thermal_field[2] + external_field[2],
                         ];
 
                         // Direction of time evolution
                         let time_factor = if forward { -1.0 } else { 1.0 };
 
-                        // Hamiltonian matrix elements
-                        let h11 = -0.5 * total_field[2];
-                        let h12 = -0.5 * (total_field[0] - Complex::i() * total_field[1]);
-                        let h21 = -0.5 * (total_field[0] + Complex::i() * total_field[1]);
-                        let h22 = 0.5 * total_field[2];
+                        // Magnetic moment of an electron spin (Bohr magneton)
+                        const MU_S: f64 = MU_B;
 
-                        // Time evolution operator: U = exp(-i * H * dt / ħ)
-                        let delta = time_factor * DELTA_T / HBAR;
+                        // Hamiltonian matrix elements (in Joules)
+                        let h11 = -0.5 * MU_S * total_field[2];
+                        let h12 = -0.5 * MU_S * (total_field[0] - Complex::<f64>::i() * total_field[1]);
+                        let h21 = -0.5 * MU_S * (total_field[0] + Complex::<f64>::i() * total_field[1]);
+                        let h22 = 0.5 * MU_S * total_field[2];
 
-                        let h_matrix = [
-                            [Complex::new(h11 * delta, 0.0), h12 * delta],
-                            [h21 * delta, Complex::new(h22 * delta, 0.0)],
+                        // Time evolution operator: U = exp(-i * H * Δt / ħ)
+                        let delta = time_factor * DELTA_T;
+                        let exponent = [
+                            [Complex::new(h11, 0.0), h12],
+                            [h21, Complex::new(h22, 0.0)],
                         ];
+                        let exponent = matrix_scalar_multiply(&exponent, Complex::new(0.0, -delta / HBAR));
 
                         // Exponentiate the Hamiltonian matrix using Taylor expansion
                         let identity = [
@@ -177,20 +179,16 @@ impl Lattice {
                         ];
 
                         let mut u_matrix = identity;
-
-                        // Using a simple approximation for the exponential
-                        let n_terms = 5; // Number of terms in the Taylor series
-                        let mut h_power = h_matrix;
+                        let mut term = identity;
                         let mut factorial = 1.0;
+
+                        let n_terms = 20; // Number of terms in the Taylor series
 
                         for n in 1..n_terms {
                             factorial *= n as f64;
-                            let coeff = Complex::new(0.0, -1.0).powu(n as u32) / factorial;
-                            u_matrix = matrix_add(
-                                &u_matrix,
-                                &matrix_scalar_multiply(&h_power, coeff),
-                            );
-                            h_power = matrix_multiply(&h_power, &h_matrix);
+                            term = matrix_multiply(&term, &exponent);
+                            let coeff = Complex::new(1.0 / factorial, 0.0);
+                            u_matrix = matrix_add(&u_matrix, &matrix_scalar_multiply(&term, coeff));
                         }
 
                         // Apply the time evolution operator
