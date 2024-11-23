@@ -190,9 +190,39 @@ fn main() {
         0.5,
     );
 
+    let electron2 = QuantumState::new(
+        ParticleType::Fermion,
+        ELECTRON_MASS,
+        ELECTRON_MASS * C.powi(2),
+        0.0,
+        0.0,
+        0.5,
+    );
+
+    let electron3 = QuantumState::new(
+        ParticleType::Fermion,
+        ELECTRON_MASS,
+        ELECTRON_MASS * C.powi(2),
+        0.0,
+        0.0,
+        0.5,
+    );
+
+    let electron4 = QuantumState::new(
+        ParticleType::Fermion,
+        ELECTRON_MASS,
+        ELECTRON_MASS * C.powi(2),
+        0.0,
+        0.0,
+        0.5,
+    );
+
     // Add them to the system
     system.add_state(electron);
     system.add_state(positron);
+    system.add_state(electron2);
+    system.add_state(electron3);
+    system.add_state(electron4);
 
     // Log initial state
     println!("Initial System State:");

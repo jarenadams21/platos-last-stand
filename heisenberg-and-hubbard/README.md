@@ -16,6 +16,10 @@
 12. Relative locality in curved spacetime: https://arxiv.org/pdf/1303.7216
 13. Heisenberg-Weyl and S(2) groups: https://arxiv.org/abs/2102.10791
 14. Ghostbusters! https://arxiv.org/pdf/hep-th/0411064
+15. TWISTED TENSOR PRODUCTS: https://arxiv.org/pdf/2401.17753
+16. Particle Accceleration Upper Limit via Heisenberg: https://arxiv.org/abs/2311.18470
+17. Non-commutative Flux via Heisenberg: https://arxiv.org/pdf/hep-th/0605200
+18. Heisenberg-Weyl Trans: https://arxiv.org/abs/1512.05640
 
 
 

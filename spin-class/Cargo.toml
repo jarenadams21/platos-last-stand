@@ -1,0 +1,12 @@
+[package]
+name = "spin-class"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num-complex = "0.4"
+ndarray = "0.15"
+rand = "0.8"
+plotters = "0.3"
+plotters-backend = "0.3"
+rand_distr = "0.4"
