@@ -305,11 +305,11 @@ where:
 
 ## Conclusion
 
-This simulation models a quantum spin lattice using fundamental principles of quantum mechanics and statistical physics. The lemmas and laws outlined provide a theoretical foundation for understanding and modifying the simulation. Physicists can adjust the parameters and explore various scenarios by referring to the equations and concepts presented.
+This simulation models a quantum spin lattice using fundamental principles of quantum mechanics and statistical physics. The lemmas and laws outlined provide a theoretical foundation for understanding and modifying the simulation.
 
 ---
 
-**Note**: This document assumes familiarity with quantum mechanics, operator algebra, and statistical physics. It provides a theoretical basis for the simulation code, enabling physicists to engage directly with the underlying principles and adapt the model for their research purposes.
+**Note**: This document assumes familiarity with quantum mechanics, operator algebra, and statistical physics. It provides a theoretical basis for the simulation code.
 
 
 #### Refs
