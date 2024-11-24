@@ -15,3 +15,8 @@
 7. Hadrons: Protons, Neutrons
 8. Match against LHC & Long Island data
 9. Color charge, spin, etc.
+
+### Assumptions and Simplifications:
+	•	Dimension Reduction: For computational feasibility, we’ll assume a 3-dimensional spacetime (1 time dimension and 2 spatial dimensions) for curvature calculations. Extending to full 4D is possible but significantly increases computational complexity.
+	•	Weak Field Approximation: We assume that the deviations from flat spacetime are small, allowing us to use linear approximations.
+	•	Locality: Curvature effects are computed locally at each lattice point without considering interactions between distant points in curvature calculations.
