@@ -1,12 +1,3 @@
-// Cargo.toml dependencies:
-// [dependencies]
-// num-complex = "0.4"
-// ndarray = "0.15"
-// rand = "0.8"
-// plotters = "0.3"
-// plotters-backend = "0.3"
-// rand_distr = "0.4"
-
 use num_complex::Complex;
 use ndarray::prelude::*;
 use rand::Rng;
@@ -20,11 +11,11 @@ const HBAR: f64 = 1.0545718e-34; // Reduced Planck constant in J·s
 const MU_B: f64 = 9.274009994e-24; // Bohr magneton in J/T
 const KB: f64 = 1.380649e-23; // Boltzmann constant in J/K
 const J_EXCHANGE: f64 = 1e-21; // Exchange interaction energy in J
-const LATTICE_SIZE: usize = 20; // Size of the lattice (20x20x20)
+const LATTICE_SIZE: usize = 20; // Size of the lattice (10x10x10)
 const TIME_STEPS: usize = 1000; // Number of time steps
-const DELTA_T: f64 = 1e-17; // Time step in seconds
-const TEMPERATURE: f64 = 1000000000.0; // Temperature in Kelvin
-const EXTERNAL_FIELD: f64 = 10000.0; // External magnetic field in Tesla
+const DELTA_T: f64 = 1e-22; // Time step in seconds
+const TEMPERATURE: f64 = 100000000000.0 * (1.0/137.0); // Temperature in Kelvin
+const EXTERNAL_FIELD: f64 = -1000000000000090000000000.0 * (1.0/137.0);// -100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000.0 * (1.0/137.0); // External magnetic field in Tesla
 
 // Added CMB temperature
 const CMB_TEMPERATURE: f64 = 2.725; // Cosmic Microwave Background temperature in Kelvin
@@ -37,20 +28,17 @@ struct Spinor {
 }
 
 impl Spinor {
-    /// Initialize a spinor pointing up
-    fn new_up() -> Self {
-        Spinor {
-            up: Complex::new(1.0, 0.0),
-            down: Complex::new(0.0, 0.0),
-        }
-    }
+    /// Initialize a spinor pointing in a random direction (to reflect permutation symmetry)
+    fn new_random(rng: &mut StdRng) -> Self {
+        // Random angles for spherical coordinates
+        let theta = rng.gen_range(0.0..std::f64::consts::PI);
+        let phi = rng.gen_range(0.0..(2.0 * std::f64::consts::PI));
 
-    /// Initialize a spinor pointing down
-    fn new_down() -> Self {
-        Spinor {
-            up: Complex::new(0.0, 0.0),
-            down: Complex::new(1.0, 0.0),
-        }
+        // Convert to spinor components
+        let up = Complex::new(theta.cos() / 2.0, 0.0);
+        let down = Complex::new(theta.sin() / 2.0 * phi.cos(), theta.sin() / 2.0 * phi.sin());
+
+        Spinor { up, down }
     }
 
     /// Normalize the spinor
@@ -62,7 +50,7 @@ impl Spinor {
 
     /// Expectation value of Sx
     fn expectation_sx(&self) -> f64 {
-        let sx: Complex<f64> = self.up.conj() * self.down + self.down.conj() * self.up;
+        let sx = self.up.conj() * self.down + self.down.conj() * self.up;
         sx.re
     }
 
@@ -79,63 +67,26 @@ impl Spinor {
     }
 }
 
-/// Energy struct to keep track of energy exchanges
-#[derive(Clone, Copy, Debug)]
-struct Energy {
-    total_energy: f64,
-}
-
-impl Energy {
-    fn new() -> Self {
-        Energy { total_energy: 0.0 }
-    }
-
-    fn add_energy(&mut self, delta_e: f64) {
-        self.total_energy += delta_e;
-    }
-}
-
 /// Lattice struct representing the 3D lattice of spins
 struct Lattice {
     spins: Array3<Spinor>,
     size: usize,
-    energy: Energy,
 }
 
 impl Lattice {
-    /// Initialize a new lattice with all spins pointing up
+    /// Initialize a new lattice with spins in random orientations to reflect permutation symmetry
     fn new(size: usize) -> Self {
-        let spin_up = Spinor::new_up();
-        let spins = Array3::from_elem((size, size, size), spin_up);
-        Lattice {
-            spins,
-            size,
-            energy: Energy::new(),
-        }
-    }
-
-    /// Apply an external magnetic field in the center region (observer effect)
-    fn apply_external_field(&mut self) {
-        let center = self.size / 2;
-        let radius = self.size / 5; // Define the non-magnetic sphere radius
-        for x in 0..self.size {
-            for y in 0..self.size {
-                for z in 0..self.size {
-                    let dx = x as isize - center as isize;
-                    let dy = y as isize - center as isize;
-                    let dz = z as isize - center as isize;
-                    let distance = ((dx * dx + dy * dy + dz * dz) as f64).sqrt();
-                    if distance < radius as f64 {
-                        // Flip the spins in the center region
-                        self.spins[[x, y, z]] = Spinor::new_down();
-                    }
-                }
-            }
-        }
+        let mut rng = StdRng::seed_from_u64(0);
+        let spins = Array3::from_shape_fn((size, size, size), |_| {
+            let mut spin = Spinor::new_random(&mut rng);
+            spin.normalize();
+            spin
+        });
+        Lattice { spins, size }
     }
 
     /// Simulate the evolution of the lattice over time
-    fn evolve(&mut self, forward: bool) {
+    fn evolve(&mut self) {
         let mut rng = StdRng::seed_from_u64(0);
         for _ in 0..TIME_STEPS {
             let spins_copy = self.spins.clone();
@@ -180,9 +131,6 @@ impl Lattice {
                             exchange_field[2] + thermal_field[2] + cmb_field[2] + external_field[2],
                         ];
 
-                        // Direction of time evolution
-                        let time_factor = if forward { -1.0 } else { 1.0 };
-
                         // Magnetic moment of an electron spin (Bohr magneton)
                         const MU_S: f64 = MU_B;
 
@@ -193,31 +141,15 @@ impl Lattice {
                         let h22 = 0.5 * MU_S * total_field[2];
 
                         // Time evolution operator: U = exp(-i * H * Δt / ħ)
-                        let delta = time_factor * DELTA_T;
+                        let delta = -DELTA_T; // Forward time evolution
                         let exponent = [
                             [Complex::new(h11, 0.0), h12],
                             [h21, Complex::new(h22, 0.0)],
                         ];
                         let exponent = matrix_scalar_multiply(&exponent, Complex::new(0.0, -delta / HBAR));
 
-                        // Exponentiate the Hamiltonian matrix using Taylor expansion
-                        let identity = [
-                            [Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)],
-                            [Complex::new(0.0, 0.0), Complex::new(1.0, 0.0)],
-                        ];
-
-                        let mut u_matrix = identity;
-                        let mut term = identity;
-                        let mut factorial = 1.0;
-
-                        let n_terms = 20; // Number of terms in the Taylor series
-
-                        for n in 1..n_terms {
-                            factorial *= n as f64;
-                            term = matrix_multiply(&term, &exponent);
-                            let coeff = Complex::new(1.0 / factorial, 0.0);
-                            u_matrix = matrix_add(&u_matrix, &matrix_scalar_multiply(&term, coeff));
-                        }
+                        // Exponentiate the Hamiltonian matrix using Padé approximant for better numerical stability
+                        let u_matrix = matrix_exponential(&exponent);
 
                         // Apply the time evolution operator
                         let new_up = u_matrix[0][0] * spin.up + u_matrix[0][1] * spin.down;
@@ -229,10 +161,6 @@ impl Lattice {
                         };
 
                         new_spin.normalize();
-
-                        // Calculate energy exchange due to CMB interaction
-                        let energy_exchange = self.calculate_energy_exchange(&spin, &new_spin, &total_field);
-                        self.energy.add_energy(energy_exchange);
 
                         self.spins[[x, y, z]] = new_spin;
                     }
@@ -251,32 +179,6 @@ impl Lattice {
             rng.sample(normal_dist),
             rng.sample(normal_dist),
         ]
-    }
-
-    /// Calculate the energy exchange due to spin transition
-    fn calculate_energy_exchange(&self, old_spin: &Spinor, new_spin: &Spinor, total_field: &[f64; 3]) -> f64 {
-        // Energy difference ΔE = -μ · (B_new - B_old)
-        let delta_b = total_field;
-        let mu_s = MU_B;
-
-        let s_old = [
-            old_spin.expectation_sx(),
-            old_spin.expectation_sy(),
-            old_spin.expectation_sz(),
-        ];
-        let s_new = [
-            new_spin.expectation_sx(),
-            new_spin.expectation_sy(),
-            new_spin.expectation_sz(),
-        ];
-        let delta_s = [
-            s_new[0] - s_old[0],
-            s_new[1] - s_old[1],
-            s_new[2] - s_old[2],
-        ];
-
-        let delta_e = -mu_s * (delta_s[0] * delta_b[0] + delta_s[1] * delta_b[1] + delta_s[2] * delta_b[2]);
-        delta_e
     }
 
     /// Get the neighboring spins for a given position
@@ -399,12 +301,63 @@ fn matrix_scalar_multiply(
     ]
 }
 
-fn main() {
-    // Initialize the lattice
-    let mut lattice = Lattice::new(LATTICE_SIZE);
+/// Matrix exponential using Padé approximant for 2x2 matrices
+fn matrix_exponential(a: &[[Complex<f64>; 2]; 2]) -> [[Complex<f64>; 2]; 2] {
+    // For small matrices, Padé approximant provides good numerical stability
+    let n = 6; // Order of the approximant
 
-    // Apply external magnetic field (observer effect)
-    lattice.apply_external_field();
+    let mut a_power = [
+        [Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)],
+        [Complex::new(0.0, 0.0), Complex::new(1.0, 0.0)],
+    ]; // a^0 = I
+
+    let mut numerator = [
+        [Complex::new(0.0, 0.0); 2],
+        [Complex::new(0.0, 0.0); 2],
+    ];
+    let mut denominator = numerator;
+
+    for k in 0..=n {
+        if k > 0 {
+            a_power = matrix_multiply(&a_power, a);
+        }
+        let coeff_num = factorial(n) * factorial(n - k);
+        let coeff_den = factorial(n + k) * factorial(n - k);
+
+        let coeff_num = Complex::new(coeff_num as f64, 0.0);
+        let coeff_den = Complex::new(coeff_den as f64, 0.0);
+
+        let term_num = matrix_scalar_multiply(&a_power, coeff_num);
+        let term_den = matrix_scalar_multiply(&a_power, coeff_den);
+
+        numerator = matrix_add(&numerator, &term_num);
+        denominator = matrix_add(&denominator, &term_den);
+    }
+
+    // Inverse of denominator
+    let det = denominator[0][0] * denominator[1][1] - denominator[0][1] * denominator[1][0];
+    let inv_det = det.inv();
+    let inverse_denominator = [
+        [
+            denominator[1][1] * inv_det,
+            -denominator[0][1] * inv_det,
+        ],
+        [
+            -denominator[1][0] * inv_det,
+            denominator[0][0] * inv_det,
+        ],
+    ];
+
+    matrix_multiply(&inverse_denominator, &numerator)
+}
+
+fn factorial(n: usize) -> usize {
+    (1..=n).product()
+}
+
+fn main() {
+    // Initialize the lattice with random spins to reflect permutation symmetry
+    let mut lattice = Lattice::new(LATTICE_SIZE);
 
     // Initial magnetization and uncertainty
     let initial_magnetization = lattice.calculate_magnetization();
@@ -416,32 +369,20 @@ fn main() {
     lattice.plot_magnetization_slice("initial_magnetization.png");
 
     // Evolve the lattice forward in time
-    lattice.evolve(true);
+    lattice.evolve();
+        // Evolve the lattice forward in time
+        lattice.evolve();
+            // Evolve the lattice forward in time
+    lattice.evolve();
+        // Evolve the lattice forward in time
+        lattice.evolve();
 
-    // Magnetization and uncertainty after forward evolution
-    let forward_magnetization = lattice.calculate_magnetization();
-    let forward_uncertainty = lattice.calculate_uncertainty();
-    println!("Forward Magnetization: {}", forward_magnetization);
-    println!("Forward Uncertainty Spread: {}", forward_uncertainty);
+    // Magnetization and uncertainty after evolution
+    let final_magnetization = lattice.calculate_magnetization();
+    let final_uncertainty = lattice.calculate_uncertainty();
+    println!("Final Magnetization: {}", final_magnetization);
+    println!("Final Uncertainty Spread: {}", final_uncertainty);
 
-    // Total energy after forward evolution
-    println!("Total Energy after Forward Evolution: {}", lattice.energy.total_energy);
-
-    // Plot magnetization after forward evolution
-    lattice.plot_magnetization_slice("forward_magnetization.png");
-
-    // Evolve the lattice backward in time
-    lattice.evolve(false);
-
-    // Magnetization and uncertainty after backward evolution
-    let backward_magnetization = lattice.calculate_magnetization();
-    let backward_uncertainty = lattice.calculate_uncertainty();
-    println!("Backward Magnetization: {}", backward_magnetization);
-    println!("Backward Uncertainty Spread: {}", backward_uncertainty);
-
-    // Total energy after backward evolution
-    println!("Total Energy after Backward Evolution: {}", lattice.energy.total_energy);
-
-    // Plot magnetization after backward evolution
-    lattice.plot_magnetization_slice("backward_magnetization.png");
+    // Plot magnetization after evolution
+    lattice.plot_magnetization_slice("final_magnetization.png");
 }
