@@ -15,6 +15,7 @@
 7. Hadrons: Protons, Neutrons
 8. Match against LHC & Long Island data
 9. Color charge, spin, etc.
+10. Gauge Theory, Invariant Lagrangian, Lie Groups: https://en.wikipedia.org/wiki/Table_of_Lie_groups
 
 ### Arxiv
 1. Magnet Curvature: https://arxiv.org/pdf/2310.18456
