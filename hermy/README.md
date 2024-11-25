@@ -11,6 +11,8 @@
 10. Shor's Algorithm
 11. Bacon-Shor error correcting
 12. Xray excitation for quantum tunneling
+13. Plastic Ratio
+14. "Quantum Annealers"
 
 ## Refs
 1. Transition of Von-Nuemann Algebras: https://arxiv.org/abs/2401.04764
@@ -20,5 +22,9 @@
 5. 
 6. Exploring Quantum Materials with Xray: https://arxiv.org/pdf/2410.13062
 7. Nuetral Atom Processor: https://arxiv.org/abs/2411.11822
+8. Yang-Lee non-hermitian interaction: https://arxiv.org/abs/0906.4070
+9. PT Symmetric Hermitian: https://arxiv.org/pdf/2211.00679
+10. Annealing Processor: https://spectrum.ieee.org/japanese-researchers-develop-a-novel-annealing-processor-thats-the-fastest-technology-yet-at-solving-combinatorial-optimization-problems
+
 
 
