@@ -5,7 +5,7 @@ function App() {
   return (
     <>
       <div className="appWrap">
-        <h1> Compton Scatterer </h1>
+        <h1> Compton Scatterer: Phase Changing a Lattice in Extreme Cases from a Zed-Influence </h1>
         <h2>Defect Depth Profile</h2>
         <h2>Scatter Profile</h2>
         <h3>Dynamic Lattice View</h3>
