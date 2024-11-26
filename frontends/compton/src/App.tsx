@@ -14,6 +14,7 @@ function App() {
         <div className="refs">
           <a href="https://arxiv.org/abs/gr-qc/0601043">Can Gravitons Exist?</a>
           <a href="https://www.nature.com/articles/d41586-024-01445-2">Rubidium Fiber Coms</a>
+          <a href="https://arxiv.org/pdf/2411.14412">Adversarial QM</a>
         </div>
       </div>
     </>
