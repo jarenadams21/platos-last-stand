@@ -8,6 +8,8 @@ function App() {
         <h1>[The AETHER] Compton Scatterer: Phase Changing a Lattice in Extreme Cases from a Zed-Influence </h1>
         <h2>Defect Depth Profile</h2>
         <h2>Scatter Profile</h2>
+        <h2>Hartman Profile</h2>
+        <h2>Pilot Wave Profiles</h2>
         <h3>Dynamic Lattice View</h3>
         <h4>Controls</h4>
         <h5>Quick Links</h5>
