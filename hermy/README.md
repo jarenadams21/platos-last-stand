@@ -17,6 +17,15 @@
 16. Compton Imager: https://arxiv.org/abs/2409.08822
 17.  Invisible particle search: https://arxiv.org/pdf/2410.17591
 18. Coloumb Potential in Compton: https://arxiv.org/abs/2411.09442
+19. Evolution of Entanglement in Scattering: https://arxiv.org/abs/2406.14352
+20. Full-Inverse Compton Scattering: https://arxiv.org/pdf/2408.00012
+21. Two-loop coefficient functions: https://arxiv.org/pdf/2411.14985
+22. Two photons everywhere: https://arxiv.org/pdf/2402.14010
+23. Quantum Network Shaping: https://arxiv.org/html/2403.04432v3#S5
+24. Simple Two Photon State Prep: https://arxiv.org/abs/2405.01395
+25. Two photon dissapation: https://arxiv.org/abs/2403.07744
+26. Lossy Linear Transformations: https://arxiv.org/abs/2404.06056
+27. Path reconfiguration of two photon quantum system: https://arxiv.org/abs/2401.13176
 
 
 ## Refs
