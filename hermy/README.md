@@ -13,7 +13,11 @@
 12. Xray excitation for quantum tunneling
 13. Plastic Ratio
 14. "Quantum Annealers"
-15. Compton Scattering
+15. Compton Scattering: https://arxiv.org/pdf/2405.00343
+16. Compton Imager: https://arxiv.org/abs/2409.08822
+17.  Invisible particle search: https://arxiv.org/pdf/2410.17591
+18. Coloumb Potential in Compton: https://arxiv.org/abs/2411.09442
+
 
 ## Refs
 1. Transition of Von-Nuemann Algebras: https://arxiv.org/abs/2401.04764
