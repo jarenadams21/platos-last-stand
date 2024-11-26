@@ -16,6 +16,11 @@ function App() {
           <a href="https://www.nature.com/articles/d41586-024-01445-2">Rubidium Fiber Coms</a>
           <a href="https://arxiv.org/pdf/2411.14412">Adversarial QM</a>
         </div>
+        <span className="quotes">
+        Feynmann’s if you think you understand quantum mechanics,
+you don’t understand quantum mechanics or Einstein’s spooky
+action at a distance.
+        </span>
       </div>
     </>
   )
