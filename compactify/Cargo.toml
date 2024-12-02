@@ -1,0 +1,12 @@
+[package]
+name = "compactify"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+piston_window = "0.127.0"
+nalgebra = "0.33"
+rand = "0.8"
+ndarray = { version = "0.15", features = ["blas"] }
+ndarray-linalg = { version = "0.15", features = ["openblas-static"] }
+num-traits = "0.2"
