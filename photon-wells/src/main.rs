@@ -1,451 +1,233 @@
-// Imports
-use num_complex::Complex;
 use ndarray::prelude::*;
-use rand::Rng;
+use num_complex::Complex;
 use rand::SeedableRng;
-use rand::rngs::StdRng;
-use rand_distr::Normal;
-use plotters::prelude::*;
-use kiss3d::window::Window;
-use kiss3d::light::Light;
-use nalgebra::{Point3, Vector3};
+use rand::{rngs::StdRng, Rng};
+use std::f64::consts::PI;
 
-// Constants
-const HBAR: f64 = 1.0545718e-34;        // Reduced Planck constant in J·s
-const MU_B: f64 = 9.274009994e-24;      // Bohr magneton in J/T
-const KB: f64 = 1.380649e-23;           // Boltzmann constant in J/K
-const J_EXCHANGE: f64 = 1e-21;          // Exchange interaction energy in J
-const LATTICE_SIZE: usize = 20;         // Size of the lattice (20x20x20)
-const TIME_STEPS: usize = 1000;         // Number of time steps
-const DELTA_T: f64 = 1e-22;             // Time step in seconds
-const TEMPERATURE: f64 = 1e2;           // Temperature in Kelvin
-const EXTERNAL_FIELD: f64 = 0.0;        // External magnetic field in Tesla
-const CMB_TEMPERATURE: f64 = 2.725;     // Cosmic Microwave Background temperature in Kelvin
-const LATTICE_SPACING: f64 = 1e-10;     // Lattice spacing in meters (e.g., 0.1 nm)
+/// Constants
+const C: f64 = 299792458.0; // Speed of light in vacuum (m/s)
+const HBAR: f64 = 1.0545718e-34; // Reduced Planck constant (J·s)
+const EPSILON_0: f64 = 8.854187817e-12; // Vacuum permittivity (F/m)
+const MU_0: f64 = 1.2566370614e-6; // Vacuum permeability (H/m)
+const G_A_GAMMA: f64 = 1e-13; // Axion-photon coupling constant (1/GeV)
+const AXION_MASS: f64 = 1e-5; // Axion mass (eV)
+const LATTICE_SIZE: usize = 20; // Size of the lattice (20x20x20)
+const TIME_STEPS: usize = 1000; // Number of time steps
+const DELTA_T: f64 = 1e-18; // Time step (s)
+const TEMPERATURE: f64 = 2.725; // Temperature in Kelvin (CMB temperature)
+const REFRACTIVE_INDEX_BASE: f64 = 1.0; // Base refractive index
+const NOISE_LEVEL: f64 = 1e-5; // Noise level for susceptibility
 
-// Spin struct representing a quantum spin state using density matrices
+/// Structure representing the axion field
 #[derive(Clone, Copy, Debug)]
-struct Spin {
-    density_matrix: [[Complex<f64>; 2]; 2],
+struct AxionField {
+    value: f64,         // Axion field value at a point
+    gradient: [f64; 3], // Spatial gradient of the axion field
 }
 
-impl Spin {
-    // Pauli matrices
-    const PAULI_X: [[Complex<f64>; 2]; 2] = [
-        [Complex::new(0.0, 0.0), Complex::new(1.0, 0.0)],
-        [Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)],
-    ];
-    const PAULI_Y: [[Complex<f64>; 2]; 2] = [
-        [Complex::new(0.0, 0.0), Complex::new(0.0, -1.0)],
-        [Complex::new(0.0, 1.0), Complex::new(0.0, 0.0)],
-    ];
-    const PAULI_Z: [[Complex<f64>; 2]; 2] = [
-        [Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)],
-        [Complex::new(0.0, 0.0), Complex::new(-1.0, 0.0)],
-    ];
+impl AxionField {
+    /// Calculate the axion-induced refractive index modification
+    fn refractive_index_modification(&self) -> f64 {
+        G_A_GAMMA * self.value
+    }
+}
 
-    /// Initialize a spin with a random pure state density matrix
+/// Structure representing a photonic state at a point in the lattice
+#[derive(Clone, Copy, Debug)]
+struct PhotonicState {
+    electric_field: Complex<f64>, // Electric field amplitude
+    magnetic_field: Complex<f64>, // Magnetic field amplitude
+    phase: f64,                   // Phase of the photon
+}
+
+impl PhotonicState {
+    /// Initialize a photonic state with a random phase
     fn new_random(rng: &mut StdRng) -> Self {
-        // Random angles
-        let theta = rng.gen_range(0.0..std::f64::consts::PI);
-        let phi = rng.gen_range(0.0..(2.0 * std::f64::consts::PI));
-
-        // Bloch sphere representation
-        let nx = theta.sin() * phi.cos();
-        let ny = theta.sin() * phi.sin();
-        let nz = theta.cos();
-
-        // Convert to density matrix
-        let density_matrix = [
-            [
-                Complex::new((1.0 + nz) / 2.0, 0.0),
-                Complex::new((nx - Complex::<f64>::i() * ny) / 2.0, 0.0),
-            ],
-            [
-                Complex::new((nx + Complex::<f64>::i() * ny) / 2.0, 0.0),
-                Complex::new((1.0 - nz) / 2.0, 0.0),
-            ],
-        ];
-
-        Spin { density_matrix }
-    }
-
-    /// Calculate expectation value for an operator
-    fn expectation(&self, operator: &[[Complex<f64>; 2]; 2]) -> f64 {
-        let mut result = Complex::new(0.0, 0.0);
-        for i in 0..2 {
-            for j in 0..2 {
-                result += self.density_matrix[i][j] * operator[j][i];
-            }
-        }
-        result.re
-    }
-
-    fn expectation_sx(&self) -> f64 {
-        self.expectation(&Self::PAULI_X)
-    }
-
-    fn expectation_sy(&self) -> f64 {
-        self.expectation(&Self::PAULI_Y)
-    }
-
-    fn expectation_sz(&self) -> f64 {
-        self.expectation(&Self::PAULI_Z)
-    }
-}
-
-// Photon struct representing an observable photon
-struct Photon {
-    position: [f64; 3],
-    momentum: [f64; 3],
-    polarization: [f64; 3],
-    frequency: f64,
-}
-
-impl Photon {
-    fn new(position: [f64; 3], momentum: [f64; 3], polarization: [f64; 3]) -> Self {
-        let frequency = (momentum[0].powi(2) + momentum[1].powi(2) + momentum[2].powi(2)).sqrt() / (2.0 * std::f64::consts::PI);
-        Photon {
-            position,
-            momentum,
-            polarization,
-            frequency,
+        let phase = rng.gen_range(0.0..(2.0 * PI));
+        PhotonicState {
+            electric_field: Complex::new(phase.cos(), phase.sin()),
+            magnetic_field: Complex::new(phase.cos(), phase.sin()),
+            phase,
         }
     }
 
-    /// Move the photon forward in time
-    fn propagate(&mut self, delta_t: f64) {
-        for i in 0..3 {
-            self.position[i] += self.momentum[i] * delta_t;
-        }
-    }
+    /// Update the photonic state using trigonometric identities
+    fn update_state(&mut self, delta_phase: f64) {
+        // Use angle addition formula to compute new phase
+        let new_phase = (self.phase + delta_phase) % (2.0 * PI);
 
-    /// Check if the photon is within the lattice bounds
-    fn is_in_lattice(&self, size: usize) -> bool {
-        self.position.iter().all(|&x| x >= 0.0 && x < size as f64)
+        // Update electric and magnetic fields using exact trigonometric identities
+        self.electric_field = Complex::new(new_phase.cos(), new_phase.sin());
+        self.magnetic_field = Complex::new(new_phase.cos(), new_phase.sin());
+        self.phase = new_phase;
     }
 }
 
-// Lattice struct representing the 3D lattice of spins
-struct Lattice {
-    spins: Array3<Spin>,
+/// Structure representing the 3D photonic lattice
+struct PhotonicLattice {
     size: usize,
-    photon: Option<Photon>,
+    photons: Array3<PhotonicState>,
+    axion_field: Array3<AxionField>,
 }
 
-impl Lattice {
-    /// Initialize a new lattice with spins in random orientations
+impl PhotonicLattice {
+    /// Initialize a new photonic lattice with random photonic states and axion field
     fn new(size: usize) -> Self {
-        let mut rng = StdRng::seed_from_u64(0);
-        let spins = Array3::from_shape_fn((size, size, size), |_| {
-            Spin::new_random(&mut rng)
+        let mut rng = StdRng::seed_from_u64(42); // Seed for reproducibility
+
+        // Initialize photonic states with random phases
+        let photons = Array3::from_shape_fn((size, size, size), |_| {
+            PhotonicState::new_random(&mut rng)
         });
-        Lattice {
-            spins,
+
+        // Initialize axion field with a spatial gradient
+        let axion_field = Array3::from_shape_fn((size, size, size), |(x, y, z)| {
+            let center = (size / 2) as f64;
+            let position = [
+                x as f64 - center,
+                y as f64 - center,
+                z as f64 - center,
+            ];
+            let distance = (position[0].powi(2) + position[1].powi(2) + position[2].powi(2)).sqrt();
+            let value = (AXION_MASS * distance / center).sin(); // Spatial variation using sine function
+            let gradient = [
+                AXION_MASS * position[0].cos() / center,
+                AXION_MASS * position[1].cos() / center,
+                AXION_MASS * position[2].cos() / center,
+            ];
+            AxionField { value, gradient }
+        });
+
+        PhotonicLattice {
             size,
-            photon: Some(Photon::new(
-                [0.0, size as f64 / 2.0, size as f64 / 2.0], // Starting position at one edge
-                [1.0, 0.0, 0.0],   // Momentum along x-axis
-                [0.0, 1.0, 0.0],   // Polarization along y-axis
-            )),
+            photons,
+            axion_field,
         }
     }
 
-    /// Simulate one evolution step of the lattice
-    fn evolve_step(&mut self) {
-        let mut rng = StdRng::seed_from_u64(0);
+    /// Simulate the evolution of the photonic lattice over time
+    fn evolve(&mut self) {
+        let mut rng = StdRng::seed_from_u64(24); // Seed for noise generation
 
-        let spins_copy = self.spins.clone();
-        for x in 0..self.size {
-            for y in 0..self.size {
-                for z in 0..self.size {
-                    let spin = spins_copy[[x, y, z]];
-                    let neighbors = self.get_neighbors(x, y, z);
+        for _ in 0..TIME_STEPS {
+            let photons_copy = self.photons.clone();
 
-                    // Compute exchange field from neighbors
-                    let mut exchange_field = [0.0, 0.0, 0.0];
-                    for neighbor_spin in &neighbors {
-                        exchange_field[0] += neighbor_spin.expectation_sx();
-                        exchange_field[1] += neighbor_spin.expectation_sy();
-                        exchange_field[2] += neighbor_spin.expectation_sz();
-                    }
+            for x in 0..self.size {
+                for y in 0..self.size {
+                    for z in 0..self.size {
+                        // Get the current photonic state and axion field at this point
+                        let photon = photons_copy[[x, y, z]];
+                        let axion = self.axion_field[[x, y, z]];
 
-                    // Normalize exchange field and convert to Tesla
-                    let num_neighbors = neighbors.len() as f64;
-                    exchange_field[0] *= J_EXCHANGE / (MU_B * num_neighbors);
-                    exchange_field[1] *= J_EXCHANGE / (MU_B * num_neighbors);
-                    exchange_field[2] *= J_EXCHANGE / (MU_B * num_neighbors);
+                        // Calculate refractive index modification due to axion field
+                        let delta_n = axion.refractive_index_modification();
 
-                    // Thermal fluctuations due to lattice temperature (in Tesla)
-                    let thermal_std = (2.0 * KB * TEMPERATURE / (MU_B)).sqrt();
-                    let normal_dist = Normal::new(0.0, thermal_std).unwrap();
-                    let thermal_field = [
-                        rng.sample(normal_dist),
-                        rng.sample(normal_dist),
-                        rng.sample(normal_dist),
-                    ];
+                        // Total refractive index at this point
+                        let refractive_index = REFRACTIVE_INDEX_BASE + delta_n;
 
-                    // CMB field fluctuations (in Tesla)
-                    let cmb_field = self.calculate_cmb_field(&mut rng);
+                        // Calculate phase shift using exact trigonometric relations
+                        // Phase shift: Δφ = (ω / c) * n * Δt
+                        let omega = 2.0 * PI * C / (DELTA_T * refractive_index);
+                        let delta_phase = omega * DELTA_T;
 
-                    // External magnetic field
-                    let external_field = [0.0, 0.0, EXTERNAL_FIELD];
+                        // Update the photonic state using trigonometric identities
+                        let mut new_photon = photon;
+                        new_photon.update_state(delta_phase);
 
-                    // Total effective magnetic field (in Tesla)
-                    let total_field = [
-                        exchange_field[0] + thermal_field[0] + cmb_field[0] + external_field[0],
-                        exchange_field[1] + thermal_field[1] + cmb_field[1] + external_field[1],
-                        exchange_field[2] + thermal_field[2] + cmb_field[2] + external_field[2],
-                    ];
+                        // Noise due to thermal fluctuations and material imperfections
+                        let noise_phase = rng.gen_range(-NOISE_LEVEL..NOISE_LEVEL);
+                        new_photon.update_state(noise_phase);
 
-                    // Magnetic moment of an electron spin (Bohr magneton)
-                    const MU_S: f64 = MU_B;
-
-                    // Hamiltonian matrix elements (in Joules)
-                    let h11 = -0.5 * MU_S * total_field[2];
-                    let h12 = -0.5 * MU_S * (total_field[0] - Complex::<f64>::i() * total_field[1]);
-                    let h21 = -0.5 * MU_S * (total_field[0] + Complex::<f64>::i() * total_field[1]);
-                    let h22 = 0.5 * MU_S * total_field[2];
-
-                    // Time evolution operator: U = exp(-i * H * Δt / ħ)
-                    let exponent = [
-                        [Complex::new(h11, 0.0), h12],
-                        [h21, Complex::new(h22, 0.0)],
-                    ];
-                    let exponent =
-                        matrix_scalar_multiply(&exponent, Complex::new(0.0, -DELTA_T / HBAR));
-
-                    // Exponentiate the Hamiltonian matrix using Padé approximant
-                    let u_matrix = matrix_exponential(&exponent);
-
-                    // Update the density matrix: ρ' = U ρ U†
-                    let mut new_density = [[Complex::new(0.0, 0.0); 2]; 2];
-                    for i in 0..2 {
-                        for j in 0..2 {
-                            for k in 0..2 {
-                                for l in 0..2 {
-                                    new_density[i][j] +=
-                                        u_matrix[i][k] * spin.density_matrix[k][l] * u_matrix[j][l].conj();
-                                }
-                            }
+                        // Simulate Hawking radiation analogue by introducing an artificial event horizon
+                        if refractive_index > 1.5 {
+                            // At this threshold, photons are 'emitted' from the lattice
+                            // Reset the photonic state to a new random state
+                            self.photons[[x, y, z]] = PhotonicState::new_random(&mut rng);
+                        } else {
+                            self.photons[[x, y, z]] = new_photon;
                         }
                     }
-
-                    self.spins[[x, y, z]] = Spin {
-                        density_matrix: new_density,
-                    };
                 }
             }
         }
+    }
 
-        // Photon interaction
-        if let Some(photon) = &mut self.photon {
-            photon.propagate(DELTA_T);
+    /// Calculate and print the average electric field intensity in the lattice
+    fn calculate_average_intensity(&self) {
+        let mut total_intensity = 0.0;
+        for photon in self.photons.iter() {
+            total_intensity += photon.electric_field.norm_sqr();
+        }
+        let average_intensity = total_intensity / (self.size * self.size * self.size) as f64;
+        println!("Average Electric Field Intensity: {}", average_intensity);
+    }
 
-            // Check for interaction with spins
-            if photon.is_in_lattice(self.size) {
-                let x = photon.position[0].floor() as usize;
-                let y = photon.position[1].floor() as usize;
-                let z = photon.position[2].floor() as usize;
+    /// Visualize a 2D slice of the lattice (e.g., electric field intensity)
+    fn visualize_slice(&self, filename: &str) {
+        use plotters::prelude::*;
 
-                // Apply interaction
-                let spin = &mut self.spins[[x, y, z]];
+        let root = BitMapBackend::new(filename, (600, 600)).into_drawing_area();
+        root.fill(&WHITE).unwrap();
 
-                // Model photon-induced spin flip with some probability
-                let flip_probability = 0.1; // Adjust as needed
-                if rng.gen_bool(flip_probability) {
-                    // Flip the spin state
-                    let temp = spin.density_matrix[0][0];
-                    spin.density_matrix[0][0] = spin.density_matrix[1][1];
-                    spin.density_matrix[1][1] = temp;
-                    spin.density_matrix[0][1] = -spin.density_matrix[0][1];
-                    spin.density_matrix[1][0] = -spin.density_matrix[1][0];
-                }
-            } else {
-                // Remove the photon if it exits the lattice
-                self.photon = None;
+        let max_intensity = self
+            .photons
+            .iter()
+            .map(|p| p.electric_field.norm_sqr())
+            .fold(0.0 / 0.0, f64::max); // Max intensity
+
+        let z = self.size / 2; // Middle slice
+
+        let mut chart = ChartBuilder::on(&root)
+            .caption("Electric Field Intensity Slice", ("sans-serif", 20))
+            .build_cartesian_2d(0..self.size, 0..self.size)
+            .unwrap();
+
+        chart.configure_mesh().draw().unwrap();
+
+        for x in 0..self.size {
+            for y in 0..self.size {
+                let photon = self.photons[[x, y, z]];
+                let intensity = photon.electric_field.norm_sqr();
+                let color_value = (intensity / max_intensity * 255.0) as u8;
+                chart
+                    .draw_series(std::iter::once(Rectangle::new(
+                        [(x, y), (x + 1, y + 1)],
+                        RGBColor(color_value, 0, 255 - color_value).filled(),
+                    )))
+                    .unwrap();
             }
         }
     }
 
-    /// Calculate the CMB field fluctuations for a spin
-    fn calculate_cmb_field(&self, rng: &mut StdRng) -> [f64; 3] {
-        // The CMB photons interact weakly but are modeled as an additional thermal field
-        let cmb_std = (2.0 * KB * CMB_TEMPERATURE / (MU_B)).sqrt();
-        let normal_dist = Normal::new(0.0, cmb_std).unwrap();
-        [
-            rng.sample(normal_dist),
-            rng.sample(normal_dist),
-            rng.sample(normal_dist),
-        ]
+    /// Analyze noise susceptibility by measuring variance in field intensities
+    fn analyze_noise(&self) {
+        let intensities: Vec<f64> = self.photons.iter().map(|p| p.electric_field.norm_sqr()).collect();
+        let mean_intensity = intensities.iter().sum::<f64>() / intensities.len() as f64;
+        let variance = intensities
+            .iter()
+            .map(|i| (i - mean_intensity).powi(2))
+            .sum::<f64>()
+            / intensities.len() as f64;
+        println!("Intensity Variance (Noise Susceptibility): {}", variance);
     }
-
-    /// Get the neighboring spins for a given position
-    fn get_neighbors(&self, x: usize, y: usize, z: usize) -> Vec<Spin> {
-        let mut neighbors = Vec::new();
-        let size = self.size;
-        let positions = [
-            ((x + size - 1) % size, y, z),
-            ((x + 1) % size, y, z),
-            (x, (y + size - 1) % size, z),
-            (x, (y + 1) % size, z),
-            (x, y, (z + size - 1) % size),
-            (x, y, (z + 1) % size),
-        ];
-        for &(nx, ny, nz) in &positions {
-            neighbors.push(self.spins[[nx, ny, nz]]);
-        }
-        neighbors
-    }
-}
-
-/// Matrix multiplication for 2x2 complex matrices
-fn matrix_multiply(
-    a: &[[Complex<f64>; 2]; 2],
-    b: &[[Complex<f64>; 2]; 2],
-) -> [[Complex<f64>; 2]; 2] {
-    [
-        [
-            a[0][0] * b[0][0] + a[0][1] * b[1][0],
-            a[0][0] * b[0][1] + a[0][1] * b[1][1],
-        ],
-        [
-            a[1][0] * b[0][0] + a[1][1] * b[1][0],
-            a[1][0] * b[0][1] + a[1][1] * b[1][1],
-        ],
-    ]
-}
-
-/// Matrix exponential using Padé approximant for 2x2 matrices
-fn matrix_exponential(a: &[[Complex<f64>; 2]; 2]) -> [[Complex<f64>; 2]; 2] {
-    // For small matrices, Padé approximant provides good numerical stability
-    let n = 6; // Order of the approximant
-
-    let mut a_power = [
-        [Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)],
-        [Complex::new(0.0, 0.0), Complex::new(1.0, 0.0)],
-    ]; // a^0 = I
-
-    let mut numerator = [
-        [Complex::new(0.0, 0.0); 2],
-        [Complex::new(0.0, 0.0); 2],
-    ];
-    let mut denominator = numerator;
-
-    for k in 0..=n {
-        if k > 0 {
-            a_power = matrix_multiply(&a_power, a);
-        }
-        let coeff = factorial(2 * n - k) * factorial(k);
-        let coeff = Complex::new(coeff as f64, 0.0);
-
-        let term = matrix_scalar_multiply(&a_power, coeff);
-
-        if k % 2 == 0 {
-            numerator = matrix_add(&numerator, &term);
-            denominator = matrix_add(&denominator, &term);
-        } else {
-            numerator = matrix_add(&numerator, &matrix_scalar_multiply(&term, Complex::new(-1.0, 0.0)));
-            denominator = matrix_add(&denominator, &matrix_scalar_multiply(&term, Complex::new(-1.0, 0.0)));
-        }
-    }
-
-    // Inverse of denominator
-    let det = denominator[0][0] * denominator[1][1] - denominator[0][1] * denominator[1][0];
-    let inv_det = det.inv();
-    let inverse_denominator = [
-        [denominator[1][1] * inv_det, -denominator[0][1] * inv_det],
-        [-denominator[1][0] * inv_det, denominator[0][0] * inv_det],
-    ];
-
-    matrix_multiply(&inverse_denominator, &numerator)
-}
-
-/// Matrix addition for 2x2 complex matrices
-fn matrix_add(
-    a: &[[Complex<f64>; 2]; 2],
-    b: &[[Complex<f64>; 2]; 2],
-) -> [[Complex<f64>; 2]; 2] {
-    [
-        [a[0][0] + b[0][0], a[0][1] + b[0][1]],
-        [a[1][0] + b[1][0], a[1][1] + b[1][1]],
-    ]
-}
-
-/// Scalar multiplication of a 2x2 complex matrix
-fn matrix_scalar_multiply(
-    a: &[[Complex<f64>; 2]; 2],
-    scalar: Complex<f64>,
-) -> [[Complex<f64>; 2]; 2] {
-    [
-        [a[0][0] * scalar, a[0][1] * scalar],
-        [a[1][0] * scalar, a[1][1] * scalar],
-    ]
-}
-
-fn factorial(n: usize) -> usize {
-    (1..=n).product()
 }
 
 fn main() {
-    // Initialize the lattice
-    let mut lattice = Lattice::new(LATTICE_SIZE);
+    // Initialize the photonic lattice
+    let mut lattice = PhotonicLattice::new(LATTICE_SIZE);
 
-    // Set up the 3D visualization window
-    let mut window = Window::new("3D Spin Lattice Visualization");
-    window.set_light(Light::StickToCamera);
+    // Initial analysis
+    lattice.calculate_average_intensity();
+    lattice.analyze_noise();
+    lattice.visualize_slice("initial_intensity.png");
 
-    // Create a vector to hold the cubes representing spins
-    let mut cubes = Vec::new();
+    // Evolve the lattice over time
+    lattice.evolve();
 
-    // Add cubes to the window representing each spin
-    for x in 0..LATTICE_SIZE {
-        for y in 0..LATTICE_SIZE {
-            for z in 0..LATTICE_SIZE {
-                let mut cube = window.add_cube(0.8, 0.8, 0.8);
-                cube.set_local_translation(
-                    Vector3::new(x as f32, y as f32, z as f32).into(),
-                );
-                cubes.push(cube);
-            }
-        }
-    }
+    // Post-evolution analysis
+    lattice.calculate_average_intensity();
+    lattice.analyze_noise();
+    lattice.visualize_slice("final_intensity.png");
 
-    // Main loop
-    while window.render() {
-        // Evolve the lattice
-        lattice.evolve_step();
-
-        // Update the cubes' colors based on spin orientation
-        for (idx, cube) in cubes.iter_mut().enumerate() {
-            let x = idx / (LATTICE_SIZE * LATTICE_SIZE);
-            let y = (idx / LATTICE_SIZE) % LATTICE_SIZE;
-            let z = idx % LATTICE_SIZE;
-
-            let spin = lattice.spins[[x, y, z]];
-            let sz = spin.expectation_sz();
-
-            // Map sz to a color
-            let color = if sz > 0.0 {
-                Point3::new(1.0 - sz as f32, 0.0, sz as f32) // Shades of blue
-            } else {
-                Point3::new(0.0, -sz as f32, 1.0 + sz as f32) // Shades of red
-            };
-            cube.set_color(color.x, color.y, color.z);
-        }
-
-        // Visualize the photon
-        if let Some(photon) = &lattice.photon {
-            let mut sphere = window.add_sphere(0.3);
-            sphere.set_local_translation(
-                Vector3::new(
-                    photon.position[0] as f32,
-                    photon.position[1] as f32,
-                    photon.position[2] as f32,
-                )
-                .into(),
-            );
-            sphere.set_color(1.0, 1.0, 0.0); // Yellow color for the photon
-        }
-    }
+    println!("Simulation complete with enhanced algebraic relations.");
 }
