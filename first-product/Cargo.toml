@@ -1,0 +1,10 @@
+[package]
+name = "first-product"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ndarray = "0.15"
+num-complex = "0.4"
+rand = "0.8"
+rug = "1.26.0"
