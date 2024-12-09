@@ -5,184 +5,64 @@ use rand::SeedableRng;
 use rand::{rngs::StdRng, Rng};
 use std::f64::consts::PI;
 use image::{RgbImage, Rgb};
+use std::fs::File;
+use std::io::Write;
 
-/// Fundamental constants (SI units)
-const C: f64 = 3.0e8;                 // Speed of light in m/s
-const HBAR: f64 = 1.0545718e-34;      // Reduced Planck constant (J·s)
-const G: f64 = 6.67430e-11;           // Gravitational constant (m^3 kg^-1 s^-2)
-const K_B: f64 = 1.380649e-23;        // Boltzmann constant (J/K)
+/// Physical constants (SI units) and parameters
+const C: f64 = 3.0e8;   // Speed of light
 const EPSILON_0: f64 = 8.854187817e-12;
 const MU_0: f64 = 1.2566370614e-6;
 
-// Field and mass parameters
-const G_A_GAMMA: f64 = 1e-15;    // Axion-photon coupling constant
-const AXION_MASS: f64 = 1e-10;    // Axion mass (eV), toy value
+/// Lattice configuration
+const LATTICE_SIZE: usize = 5;
+const TIME_STEPS: usize = 10000; // fewer steps to fit nicely
+const DELTA_T: f64 = 5.39 * 1e-44; // 5.39 * 10e44
+const LATTICE_SPACING: f64 = 1e-6; // 1 µm spacing
 
-// Lattice parameters
-const LATTICE_SIZE: usize = 20;
-const TIME_STEPS: usize = 10;
-const DELTA_T: f64 = 1e-22; // 15
-const LATTICE_SPACING: f64 = 1e-6; // 1 mm spacing
+/// Material (Water) refractive index approximation
+const N_CARBON: f64 = 1.333;
 
-// Black hole parameters
-const RS: f64 = 1e-6; // Schwarzschild radius in meters
-const REFRACTIVE_INDEX_BASE: f64 = 1.0;
-const EVENT_HORIZON_N: f64 = 1.33; // (!) : Could be a sharp transition layer instead
+/// Noise and interaction parameters
 const NOISE_LEVEL: f64 = 1e-4;
-const TUNNELING_PROB: f64 = 1e-4;
+const INTENSITY_THRESHOLD: f64 = 1e-8;
+const Z_AXIS_BOOST_INTERVAL: usize = 100;
+const PHASE_SHIFT_FACTOR: f64 = 1.33;
 
-// Neutrino parameters
-const NEUTRINO_HALF_LIFE: f64 = 1e-10; // Unjustified
-const NEUTRINO_MOVE_PROB: f64 = 0.2; // Unjustified
-
-// Compute BH mass from RS
-fn black_hole_mass(rs: f64) -> f64 {
-    (rs * C.powi(2)) / (2.0 * G)
-}
-
-// Hawking temperature
-fn hawking_temperature(m: f64) -> f64 {
-    HBAR * C.powi(3) / (8.0 * PI * G * m * K_B)
-}
-
+/// Represent matter states
 #[derive(Clone, Copy, Debug)]
-struct AxionField {
-    value: f64,
-    gradient: [f64; 3],
-}
-
-impl AxionField {
-    fn refractive_index_modification(&self) -> f64 {
-        G_A_GAMMA * self.value
-    }
-}
-
-/// Neutrino state
-#[derive(Clone, Copy, Debug)]
-struct NeutrinoState {
-    spinor: [Complex<f64>; 4],
-    flavor: usize,
-    lifetime: f64,
+struct MatterCell {
     active: bool,
+    lifetime: f64,
 }
 
-impl NeutrinoState {
-    fn new_random(rng: &mut StdRng) -> Self {
-        let spinor = [
-            Complex::new(rng.gen::<f64>(), rng.gen::<f64>()),
-            Complex::new(rng.gen::<f64>(), rng.gen::<f64>()),
-            Complex::new(rng.gen::<f64>(), rng.gen::<f64>()),
-            Complex::new(rng.gen::<f64>(), rng.gen::<f64>()),
-        ];
-        let norm = (spinor.iter().map(|c| c.norm_sqr()).sum::<f64>()).sqrt();
-        let spinor = spinor.map(|c| c / norm);
-        let flavor = rng.gen_range(0..3);
-        NeutrinoState {
-            spinor,
-            flavor,
+impl MatterCell {
+    fn new(rng: &mut StdRng) -> Self {
+        Self {
+            active: rng.gen_bool(0.5),
             lifetime: 0.0,
-            active: true,
         }
-    }
-
-    fn update(
-        &mut self,
-        neighbors: &[NeutrinoState],
-        axion: &AxionField,
-        photon_intensity: f64,
-        rng: &mut StdRng,
-    ) {
-        if !self.active { return; }
-        let rotation_angle = (axion.value * photon_intensity).sin();
-        self.flavor = ((self.flavor as f64 + rotation_angle) as usize) % 3;
-
-        let flavor_count = neighbors.iter().filter(|n| n.active && n.flavor == self.flavor).count();
-        if flavor_count > neighbors.len() / 2 {
-            self.spinor[3] = -self.spinor[3];
-        }
-
-        let norm = (self.spinor.iter().map(|c| c.norm_sqr()).sum::<f64>()).sqrt();
-        if norm != 0.0 {
-            for s in &mut self.spinor {
-                *s = *s / norm;
-            }
-        }
-    }
-
-    fn entangle_with_photon(&mut self, e_amp: &mut f64, phase: &mut f64) {
-        if !self.active { return; }
-        let photon_amp = *e_amp;
-        let factor = Complex::new(photon_amp.cos(), photon_amp.sin());
-        for s in &mut self.spinor {
-            *s = (*s + factor) / Complex::new(2.0_f64.sqrt(), 0.0);
-        }
-
-        let new_amp = photon_amp / 2.0_f64.sqrt();
-        *e_amp = new_amp;
-        *phase = *phase % (2.0 * PI);
-    }
-
-    fn decay_check(&mut self, rng: &mut StdRng) -> bool {
-        let decay_prob = 1.0 - (-(std::f64::consts::LN_2 * DELTA_T / NEUTRINO_HALF_LIFE)).exp();
-        rng.gen::<f64>() < decay_prob
-    }
-
-    fn decay_into_daughters(&mut self, rng: &mut StdRng) -> Vec<NeutrinoState> {
-        let mut daughter = NeutrinoState::new_random(rng);
-        daughter.flavor = (self.flavor + 1) % 3;
-        for s in &mut daughter.spinor {
-            *s = *s * 0.5;
-        }
-        vec![daughter]
     }
 }
 
-/// Simulation lattice with EM fields stored as separate arrays
+/// Simulation lattice
 struct SimulationLattice {
     size: usize,
-    axion_field: Array3<AxionField>,
-    neutrinos: Array3<NeutrinoState>,
-    center: f64,
-    bh_mass: f64,
-    bh_temperature: f64,
     rng: StdRng,
 
-    // Electric and magnetic fields (3D arrays)
     e_x: Array3<f64>,
     e_y: Array3<f64>,
     e_z: Array3<f64>,
     b_x: Array3<f64>,
     b_y: Array3<f64>,
     b_z: Array3<f64>,
+
+    matter: Array3<MatterCell>,
 }
 
 impl SimulationLattice {
     fn new(size: usize) -> Self {
         let mut rng = StdRng::seed_from_u64(42);
-        let center = (size / 2) as f64;
-        let axion_field = Array3::from_shape_fn((size, size, size), |(x, y, z)| {
-            let px = x as f64 - center;
-            let py = y as f64 - center;
-            let pz = z as f64 - center;
-            let distance = (px*px + py*py + pz*pz).sqrt();
-            let value = (AXION_MASS * distance).cos();
-            let gradient = [
-                -AXION_MASS * px.sin(),
-                -AXION_MASS * py.sin(),
-                -AXION_MASS * pz.sin() * PI * PI.sqrt(),
-            ];
-            AxionField { value, gradient }
-        });
 
-        let neutrinos = Array3::from_shape_fn((size, size, size), |_| {
-            NeutrinoState::new_random(&mut rng)
-        });
-
-        let mass = black_hole_mass(RS);
-        let temperature = hawking_temperature(mass);
-
-        // Initialize E and B fields
-        // Start with small random fields or uniform fields
         let e_x = Array3::from_shape_fn((size, size, size), |_| rng.gen_range(-1e-10..1e-10));
         let e_y = e_x.clone();
         let e_z = e_x.clone();
@@ -190,13 +70,12 @@ impl SimulationLattice {
         let b_y = e_x.clone();
         let b_z = e_x.clone();
 
-        SimulationLattice {
+        let matter = Array3::from_shape_fn((size, size, size), |_| {
+            MatterCell::new(&mut rng)
+        });
+
+        Self {
             size,
-            axion_field,
-            neutrinos,
-            center,
-            bh_mass: mass,
-            bh_temperature: temperature,
             rng,
             e_x,
             e_y,
@@ -204,48 +83,18 @@ impl SimulationLattice {
             b_x,
             b_y,
             b_z,
+            matter,
         }
     }
 
-    fn get_neighbors_neutrino(&self, x: usize, y: usize, z: usize) -> Vec<NeutrinoState> {
-        let mut neighbors = Vec::new();
-        let directions: [(isize, isize, isize); 6] = [
-            (1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)
-        ];
-        for (dx,dy,dz) in directions {
-            let nx = x as isize + dx;
-            let ny = y as isize + dy;
-            let nz = z as isize + dz;
-            if nx >= 0 && (nx as usize) < self.size &&
-               ny >= 0 && (ny as usize) < self.size &&
-               nz >= 0 && (nz as usize) < self.size {
-                neighbors.push(self.neutrinos[[nx as usize, ny as usize, nz as usize]]);
-            }
-        }
-        neighbors
+    fn effective_refractive_index(&self, _x: usize, _y: usize, _z: usize) -> f64 {
+        N_CARBON
     }
 
-    fn effective_refractive_index(&self, x: usize, y: usize, z: usize) -> f64 {
-        let px = (x as f64 - self.center)*LATTICE_SPACING;
-        let py = (y as f64 - self.center)*LATTICE_SPACING;
-        let pz = (z as f64 - self.center)*LATTICE_SPACING;
-        let r = (px*px + py*py + pz*pz).sqrt();
-        let epsilon = 1e-6;
-        REFRACTIVE_INDEX_BASE + RS/(r+epsilon)
-    }
-
-    fn thermal_photon_amplitude(&mut self) -> f64 {
-        let scale = (K_B * self.bh_temperature).sqrt();
-        let u: f64 = self.rng.gen::<f64>();
-        (-u.ln()).sqrt() * scale
-    }
-
-    // Update E and B fields using a simple FDTD scheme
-    // This is a rough approximation; boundary conditions and stability checks omitted for brevity
     fn update_em_fields(&mut self) {
         let dx = LATTICE_SPACING;
         let c = C;
-        // Temporary arrays for updated fields
+
         let mut new_e_x = self.e_x.clone();
         let mut new_e_y = self.e_y.clone();
         let mut new_e_z = self.e_z.clone();
@@ -253,7 +102,6 @@ impl SimulationLattice {
         let mut new_b_y = self.b_y.clone();
         let mut new_b_z = self.b_z.clone();
 
-        // Curl computations (periodic boundaries for simplicity)
         for x in 0..self.size {
             let xp = (x+1) % self.size;
             let xm = (x+self.size-1) % self.size;
@@ -264,8 +112,7 @@ impl SimulationLattice {
                     let zp = (z+1) % self.size;
                     let zm = (z+self.size-1) % self.size;
 
-                    let refr_index = self.effective_refractive_index(x,y,z);
-                    // Curl B
+                    let n = self.effective_refractive_index(x,y,z);
                     let curl_b_x = (self.b_z[[x,yp,z]] - self.b_z[[x,ym,z]])/(2.0*dx)
                                  - (self.b_y[[x,y,zp]] - self.b_y[[x,y,zm]])/(2.0*dx);
 
@@ -275,7 +122,6 @@ impl SimulationLattice {
                     let curl_b_z = (self.b_y[[xp,y,z]] - self.b_y[[xm,y,z]])/(2.0*dx)
                                  - (self.b_x[[x,yp,z]] - self.b_x[[x,ym,z]])/(2.0*dx);
 
-                    // Curl E
                     let curl_e_x = (self.e_z[[x,yp,z]] - self.e_z[[x,ym,z]])/(2.0*dx)
                                  - (self.e_y[[x,y,zp]] - self.e_y[[x,y,zm]])/(2.0*dx);
 
@@ -285,16 +131,16 @@ impl SimulationLattice {
                     let curl_e_z = (self.e_y[[xp,y,z]] - self.e_y[[xm,y,z]])/(2.0*dx)
                                  - (self.e_x[[x,yp,z]] - self.e_x[[x,ym,z]])/(2.0*dx);
 
-                    // Update E fields: dE/dt = c^2/n^2 curl B
-                    let n_sq = refr_index*refr_index;
-                    new_e_x[[x,y,z]] = self.e_x[[x,y,z]] + DELTA_T * (c*c/(n_sq)) * curl_b_x * PI;
-                    new_e_y[[x,y,z]] = self.e_y[[x,y,z]] + DELTA_T * (c*c/(n_sq)) * curl_b_y * PI;
-                    new_e_z[[x,y,z]] = self.e_z[[x,y,z]] + DELTA_T * (c*c/(n_sq)) * curl_b_z * PI;
+                    let n_sq = n*n;
+                    // Update E fields
+                    new_e_x[[x,y,z]] = self.e_x[[x,y,z]] + DELTA_T * (c*c/(n_sq)) * curl_b_x;
+                    new_e_y[[x,y,z]] = self.e_y[[x,y,z]] + DELTA_T * (c*c/(n_sq)) * curl_b_y;
+                    new_e_z[[x,y,z]] = self.e_z[[x,y,z]] + DELTA_T * (c*c/(n_sq)) * curl_b_z;
 
-                    // Update B fields: dB/dt = - curl E
-                    new_b_x[[x,y,z]] = self.b_x[[x,y,z]] - DELTA_T * curl_e_x * -PI;
-                    new_b_y[[x,y,z]] = self.b_y[[x,y,z]] - DELTA_T * curl_e_y * -PI;
-                    new_b_z[[x,y,z]] = self.b_z[[x,y,z]] - DELTA_T * curl_e_z * -PI;
+                    // Update B fields
+                    new_b_x[[x,y,z]] = self.b_x[[x,y,z]] - DELTA_T * curl_e_x;
+                    new_b_y[[x,y,z]] = self.b_y[[x,y,z]] - DELTA_T * curl_e_y;
+                    new_b_z[[x,y,z]] = self.b_z[[x,y,z]] - DELTA_T * curl_e_z - PI.powi(256);
                 }
             }
         }
@@ -307,173 +153,142 @@ impl SimulationLattice {
         self.b_z = new_b_z;
     }
 
-    fn evolve(&mut self) {
-        for _ in 0..TIME_STEPS {
-            let neutrinos_copy = self.neutrinos.clone();
+    fn apply_z_axis_boost(&mut self) {
+        let mid_x = self.size / 2;
+        let mid_y = self.size / 2;
+        for z in 0..self.size {
+            let phase_shift = (z as f64 / self.size as f64)*2.0*PI.powi(128)*PI.sqrt()*PHASE_SHIFT_FACTOR * 8.8_f64.sqrt() * PI.powi(128)*PI.sqrt();
+            let ex = self.e_x[[mid_x,mid_y,z]];
+            let ey = self.e_y[[mid_x,mid_y,z]];
+            let amp = (ex*ex + ey*ey).sqrt();
+            let new_ex = amp * phase_shift.cos();
+            let new_ey = amp * phase_shift.sin();
+            self.e_x[[mid_x,mid_y,z]] = new_ex;
+            self.e_y[[mid_x,mid_y,z]] = new_ey;
+        }
+    }
 
-            // First update EM fields
-            self.update_em_fields();
-
-            // Add noise and horizon emission
-            for x in 0..self.size {
-                for y in 0..self.size {
-                    for z in 0..self.size {
-                        let refr_index = self.effective_refractive_index(x,y,z) + self.axion_field[[x,y,z]].refractive_index_modification();
-                        
-                        // Add small noise to E fields
-                        let noise = self.rng.gen_range(-NOISE_LEVEL..NOISE_LEVEL);
-                        self.e_x[[x,y,z]] += noise;
-                        self.e_y[[x,y,z]] += noise;
-                        self.e_z[[x,y,z]] += noise;
-
-                        // Horizon emission if refr_index > EVENT_HORIZON_N
-                        if refr_index > EVENT_HORIZON_N {
-                            let amp = self.thermal_photon_amplitude();
-                            // Random orientation for a photon-like state
-                            let phase = self.rng.gen_range(0.0..2.0*PI);
-                            self.e_x[[x,y,z]] = amp * phase.cos();
-                            self.e_y[[x,y,z]] = amp * phase.sin();
-                            self.e_z[[x,y,z]] = 0.0; // Simplify to 2D polarization
-                        }
-
-                        let mut neutrino = neutrinos_copy[[x,y,z]];
-                        if neutrino.active {
-                            let neighbors = self.get_neighbors_neutrino(x,y,z);
-                            let intensity = (self.e_x[[x,y,z]].powi(2)
-                                           + self.e_y[[x,y,z]].powi(2)
-                                           + self.e_z[[x,y,z]].powi(2));
-                            neutrino.update(&neighbors, &self.axion_field[[x,y,z]], intensity, &mut self.rng);
-
-                            // Tunneling entanglement
-                            if self.rng.gen::<f64>() < TUNNELING_PROB {
-                                let mut phase = self.rng.gen_range(0.0..2.0*PI);
-                                let mut e_amp = intensity.sqrt();
-                                neutrino.entangle_with_photon(&mut e_amp, &mut phase);
-                                // Update fields after entanglement
-                                self.e_x[[x,y,z]] = e_amp * phase.cos();
-                                self.e_y[[x,y,z]] = e_amp * phase.sin();
-                                self.e_z[[x,y,z]] = 0.0;
-                            }
-
-                            // Decay check
-                            neutrino.lifetime += DELTA_T;
-                            if neutrino.decay_check(&mut self.rng) {
-                                neutrino.active = false;
-                                let daughters = neutrino.decay_into_daughters(&mut self.rng);
-                                let directions: [(isize, isize, isize); 6] = [
-                                    (1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)
-                                ];
-                                for daughter in daughters {
-                                    let (dx,dy,dz) = directions[self.rng.gen_range(0..6)];
-                                    let nx = x as isize + dx;
-                                    let ny = y as isize + dy;
-                                    let nz = z as isize + dz;
-                                    if nx >= 0 && (nx as usize) < self.size &&
-                                       ny >= 0 && (ny as usize) < self.size &&
-                                       nz >= 0 && (nz as usize) < self.size {
-                                        self.neutrinos[[nx as usize, ny as usize, nz as usize]] = daughter;
-                                    }
-                                }
-                            } else {
-                                // Movement
-                                if self.rng.gen::<f64>() < NEUTRINO_MOVE_PROB {
-                                    let directions: [(isize, isize, isize); 6] = [
-                                        (1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)
-                                    ];
-                                    let (dx,dy,dz) = directions[self.rng.gen_range(0..6)];
-                                    let nx = x as isize + dx;
-                                    let ny = y as isize + dy;
-                                    let nz = z as isize + dz;
-                                    if nx >= 0 && (nx as usize) < self.size &&
-                                       ny >= 0 && (ny as usize) < self.size &&
-                                       nz >= 0 && (nz as usize) < self.size {
-                                        self.neutrinos[[x,y,z]].active = false;
-                                        self.neutrinos[[nx as usize, ny as usize, nz as usize]] = neutrino;
-                                    } else {
-                                        self.neutrinos[[x,y,z]] = neutrino;
-                                    }
-                                } else {
-                                    self.neutrinos[[x,y,z]] = neutrino;
-                                }
-                            }
-                        }
+    fn matter_photon_conversion(&mut self) {
+        for x in 0..self.size {
+            for y in 0..self.size {
+                for z in 0..self.size {
+                    let intensity = self.e_x[[x,y,z]].powi(2) + self.e_y[[x,y,z]].powi(2) + self.e_z[[x,y,z]].powi(2);
+                    let cell = &mut self.matter[[x,y,z]];
+                    cell.lifetime += DELTA_T;
+                    if intensity > INTENSITY_THRESHOLD && cell.active {
+                        // Convert matter to photon state
+                        cell.active = false;
+                        cell.lifetime = 0.0;
+                    } else if intensity < INTENSITY_THRESHOLD * 0.5 && !cell.active && cell.lifetime > 5e-14 {
+                        // Revert back to matter
+                        cell.active = true;
+                        cell.lifetime = 0.0;
                     }
                 }
             }
         }
     }
 
-    fn calculate_average_intensity(&self) {
-        let mut total_intensity = 0.0;
-        azip!((ex in &self.e_x, ey in &self.e_y, ez in &self.e_z) {
-            total_intensity += ex*ex + ey*ey + ez*ez;
-        });
-        let avg_intensity = total_intensity / (self.size.pow(3) as f64);
-        println!("Average Electric Field Intensity: {}", avg_intensity);
+    fn add_noise(&mut self) {
+        for x in 0..self.size {
+            for y in 0..self.size {
+                for z in 0..self.size {
+                    let noise = self.rng.gen_range(-NOISE_LEVEL..NOISE_LEVEL);
+                    self.e_x[[x,y,z]] += noise;
+                    self.e_y[[x,y,z]] += noise;
+                    self.e_z[[x,y,z]] += noise;
+                }
+            }
+        }
     }
 
-    fn analyze_noise(&self) {
-        let mut intensities = Vec::with_capacity(self.size.pow(3));
-        azip!((ex in &self.e_x, ey in &self.e_y, ez in &self.e_z) {
-            intensities.push(ex*ex + ey*ey + ez*ez);
-        });
+    fn evolve(&mut self, step: usize) {
+        self.update_em_fields();
 
-        let mean_intensity: f64 = intensities.iter().sum::<f64>() / intensities.len() as f64;
-        let variance = intensities.iter().map(|i| (i - mean_intensity).powi(2)).sum::<f64>() / intensities.len() as f64;
-        println!("Intensity Variance (Noise Susceptibility): {}", variance);
+        if step % Z_AXIS_BOOST_INTERVAL == 0 && step != 0 {
+            self.apply_z_axis_boost();
+        }
+
+        self.add_noise();
+        self.matter_photon_conversion();
     }
 
-    fn sample_3d_vectors(&self) {
-        let x = self.size / 2;
-        let y = self.size / 2;
+    fn create_2d_flatmap(&self) -> RgbImage {
+        // Return the image for the slice z = size/2
         let z = self.size / 2;
-        println!("Central Electric Field Vector: ({:.3e}, {:.3e}, {:.3e})",
-                 self.e_x[[x,y,z]], self.e_y[[x,y,z]], self.e_z[[x,y,z]]);
-        println!("Central Magnetic Field Vector: ({:.3e}, {:.3e}, {:.3e})",
-                 self.b_x[[x,y,z]], self.b_y[[x,y,z]], self.b_z[[x,y,z]]);
-        let axion = self.axion_field[[x,y,z]];
-        println!("Axion Gradient at Center: {:?}", axion.gradient);
+        let mut image = RgbImage::new(self.size as u32, self.size as u32);
+        for x in 0..self.size {
+            for y in 0..self.size {
+                let intensity = (self.e_x[[x,y,z]].powi(2)
+                               + self.e_y[[x,y,z]].powi(2)
+                               + self.e_z[[x,y,z]].powi(2)).sqrt();
+                let val = (intensity / (INTENSITY_THRESHOLD*10.0) * 255.0).min(255.0) as u8;
+                let cell = self.matter[[x,y,z]];
+                let g = if cell.active { 255 } else { 0 };
+                image.put_pixel(x as u32, y as u32, Rgb([val, g, 255 - val]));
+            }
+        }
+        image
     }
 
-    fn create_3d_visual(&self, filename: &str) {
-        let mut image = RgbImage::new(self.size as u32, self.size as u32);
+    fn export_3d_data(&self, filename: &str) {
+        let mut file = File::create(filename).unwrap();
+        writeln!(file, "x,y,z,E_x,E_y,E_z,B_x,B_y,B_z,ActiveMatter").unwrap();
 
         for x in 0..self.size {
             for y in 0..self.size {
-                let mut max_intensity = 0.0;
                 for z in 0..self.size {
-                    let intensity = self.e_x[[x,y,z]].powi(2)
-                                 + self.e_y[[x,y,z]].powi(2)
-                                 + self.e_z[[x,y,z]].powi(2);
-                    if intensity > max_intensity {
-                        max_intensity = intensity;
-                    }
+                    let c = self.matter[[x,y,z]];
+                    writeln!(file, "{},{},{},{},{},{},{},{},{},{}",
+                        x, y, z,
+                        self.e_x[[x,y,z]],
+                        self.e_y[[x,y,z]],
+                        self.e_z[[x,y,z]],
+                        self.b_x[[x,y,z]],
+                        self.b_y[[x,y,z]],
+                        self.b_z[[x,y,z]],
+                        c.active as u8).unwrap();
                 }
-                let val = (max_intensity * 255.0).min(255.0) as u8;
-                image.put_pixel(x as u32, y as u32, Rgb([val, 0, 255 - val]));
             }
         }
-
-        image.save(filename).unwrap();
-        println!("3D visualization saved to {}", filename);
     }
 }
 
 fn main() {
     let mut lattice = SimulationLattice::new(LATTICE_SIZE);
-    lattice.calculate_average_intensity();
-    lattice.analyze_noise();
-    lattice.sample_3d_vectors();
 
-    for z in 0..1000 {
-    lattice.evolve();
-    lattice.calculate_average_intensity();
+    // Store all frames in memory
+    let mut frames = Vec::new();
+
+    for step in 0..TIME_STEPS {
+        lattice.evolve(step);
+        let frame = lattice.create_2d_flatmap();
+        frames.push(frame);
     }
 
-    lattice.calculate_average_intensity();
-    lattice.analyze_noise();
+    // Consolidate all frames into one PNG
+    // Here we stack them vertically in one column
+    let single_frame_width = frames[0].width();
+    let single_frame_height = frames[0].height();
+    let total_height = single_frame_height * (frames.len() as u32);
+    let total_width = single_frame_width;
 
-    lattice.create_3d_visual("3d_visualization.png");
+    let mut big_image = RgbImage::new(total_width, total_height);
+    for (i, frame) in frames.iter().enumerate() {
+        let y_offset = i as u32 * single_frame_height;
+        for x in 0..single_frame_width {
+            for y in 0..single_frame_height {
+                let pixel = frame.get_pixel(x, y);
+                big_image.put_pixel(x, y_offset + y, *pixel);
+            }
+        }
+    }
 
-    println!("Simulation complete with horizon-like behavior, Maxwellian EM fields, thermal emission, and field interactions. Researchers can adjust parameters for novel investigations.");
+    big_image.save("all_frames_consolidated.png").unwrap();
+
+    // Export 3D data
+    lattice.export_3d_data("3d_data.csv");
+
+    println!("Simulation complete. All frames consolidated into all_frames_consolidated.png");
+    println!("3D data exported as 3d_data.csv.");
 }
